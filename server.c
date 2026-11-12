@@ -92,19 +92,37 @@ static void
 handleclient(int client)
 {
 	const char *response;
+	char *end = NULL;
 	char method[8], path[256], request[4096];
 	ssize_t n;
+	size_t used = 0;
+
+	while (used < sizeof(request) - 1) {
+		n = read(client, request + used,
+			sizeof(request) - 1 - used);
+		if (n < 0) {
+			if (errno == EINTR) {
+				if (!running)
+					return;
+				continue;
+			}
+			perror("read");
+			return;
+		}
+		if (n == 0)
+			return;
+		used += (size_t)n;
+		request[used] = '\0';
+
+		end = strstr(request, "\r\n");
+		if (end)
+			break;
 	
-	n = read(client, request, sizeof(request) - 1);
-
-	if (n < 0) {
-		perror("read");
-		return;
 	}
-	if (n == 0) 
+	if (!end)
 		return;
+	*end = '\0';
 
-	request[n] = '\0';
 	if (sscanf(request, "%7s %255s", method, path) != 2)
 		return;
 
