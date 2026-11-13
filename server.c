@@ -85,6 +85,7 @@ main(void)
 	}
 
 	printf("Server shutting down\n");
+	close(dirfd);
 	close(server);
 	return EXIT_SUCCESS;
 }
