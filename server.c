@@ -23,13 +23,19 @@ int
 main(void)
 {
 	int server, yes, dirfd;
+	int exitcode = EXIT_FAILURE;
+
 	struct sockaddr_in addr = {0};
 
 	struct sigaction sa = {0};
 
 	sa.sa_handler = stop;
-	sigemptyset(&sa.sa_mask);
-	sigaction(SIGINT, &sa, NULL);
+
+	if (sigemptyset(&sa.sa_mask) < 0 || 
+		sigaction(SIGINT, &sa, NULL) < 0) {
+		perror("signal setup");
+		return EXIT_FAILURE;
+	}
 
 	dirfd = open("files", O_RDONLY | O_DIRECTORY);
 	if (dirfd < 0) {
@@ -40,7 +46,7 @@ main(void)
 	server = socket(AF_INET, SOCK_STREAM, 0);
 	if (server < 0) {
 		perror("socket");
-		return EXIT_FAILURE;
+		goto cleandir;
 	}
 	printf("Socket created: fd=%d\n", server);
 	
@@ -51,20 +57,17 @@ main(void)
 	yes = 1;
 	if (setsockopt(server, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) < 0 ) {
 		perror("setsockopt");
-		close(server);
-		return EXIT_FAILURE;
+		goto cleanserver;
 	}
 
 	if (bind(server, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
 		perror("bind");
-		close(server);
-		return EXIT_FAILURE;
+		goto cleanserver;
 	}
 
 	if (listen(server, 10) < 0) {
 		perror("listen");
-		close(server);
-		return EXIT_FAILURE;
+		goto cleanserver;
 	}
 	printf("listening on :8080\n");
 
@@ -76,7 +79,7 @@ main(void)
 				continue;
 
 			perror("accept");
-			continue;
+			goto cleanserver;
 		}
 		printf("client fd %d\n", client);
 		
@@ -85,9 +88,13 @@ main(void)
 	}
 
 	printf("Server shutting down\n");
-	close(dirfd);
+	exitcode = EXIT_SUCCESS;
+
+cleanserver:
 	close(server);
-	return EXIT_SUCCESS;
+cleandir:
+	close(dirfd);
+	return exitcode;
 }
 
 static void
