@@ -15,6 +15,7 @@ static volatile sig_atomic_t running = 1;
 static void stop(int);
 static void handleclient(int);
 static const char * route(const char *, const char *);
+static int safepath(const char *);
 
 
 int
@@ -91,9 +92,10 @@ stop(int signo)
 static void
 handleclient(int client)
 {
-	const char *response;
+	const char *response, *file;
 	char *end = NULL;
-	char method[8], path[256], request[4096];
+	char *start, *finish;
+	char method[8], path[256], version[16], request[4096];
 	ssize_t n;
 	size_t used = 0;
 
@@ -123,7 +125,23 @@ handleclient(int client)
 		return;
 	*end = '\0';
 
-	if (sscanf(request, "%7s %255s", method, path) != 2)
+	start = strchr(request, ' ');
+	if (!start)
+		return;
+	if ((size_t)(start - request) >= sizeof(method))
+		return;
+	
+	finish = strchr(++start, ' ');
+	if (!finish)
+		return;
+	if ((size_t)(finish - start) >= sizeof(path))
+		return;
+
+	if (sscanf(request, "%7s %255s %15s", method, path, version) != 3)
+		return;
+
+	if (strcmp(version, "HTTP/1.0") != 0 &&
+		strcmp(version, "HTTP/1.1") != 0)
 		return;
 
 	printf("%s %s \n", method, path);
@@ -158,4 +176,21 @@ route(const char *method, const char *path)
 		"Connection: close\r\n"
 		"\r\n"
 		"<h1>404 Not Found</h1>\n";
+}
+static int
+safepath(const char *path)
+{
+	const char *p;
+
+	if (*path != '/')
+		return 0;
+
+	for (p = path + 1; *p; p++) {
+		if (*p == '\\' || (unsigned char)*p < 32 || (unsigned char)*p == 127 )
+			return 0;
+
+		if (*p == '.' &&  p[-1] == '/')
+			return 0;
+	}
+	return 1;
 }
