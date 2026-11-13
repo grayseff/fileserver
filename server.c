@@ -4,6 +4,7 @@
 #include <netinet/in.h>
 
 #include <errno.h>
+#include <fcntl.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,14 +15,14 @@ static volatile sig_atomic_t running = 1;
 
 static void stop(int);
 static void handleclient(int);
-static const char * route(const char *, const char *);
+static int route(const char *, const char *, const char **);
 static int safepath(const char *);
 
 
 int
 main(void)
 {
-	int server, yes;
+	int server, yes, dirfd;
 	struct sockaddr_in addr = {0};
 
 	struct sigaction sa = {0};
@@ -29,6 +30,12 @@ main(void)
 	sa.sa_handler = stop;
 	sigemptyset(&sa.sa_mask);
 	sigaction(SIGINT, &sa, NULL);
+
+	dirfd = open("files", O_RDONLY | O_DIRECTORY);
+	if (dirfd < 0) {
+		perror("open files");
+		return EXIT_FAILURE;
+	}
 
 	server = socket(AF_INET, SOCK_STREAM, 0);
 	if (server < 0) {
@@ -92,12 +99,13 @@ stop(int signo)
 static void
 handleclient(int client)
 {
-	const char *response, *file;
-	char *end = NULL;
 	char *start, *finish;
 	char method[8], path[256], version[16], request[4096];
+	int status;
 	ssize_t n;
 	size_t used = 0;
+	char *end = NULL;
+	const char *file = NULL;
 
 	while (used < sizeof(request) - 1) {
 		n = read(client, request + used,
@@ -121,6 +129,7 @@ handleclient(int client)
 			break;
 	
 	}
+
 	if (!end)
 		return;
 	*end = '\0';
@@ -140,43 +149,35 @@ handleclient(int client)
 	if (sscanf(request, "%7s %255s %15s", method, path, version) != 3)
 		return;
 
-	if (strcmp(version, "HTTP/1.0") != 0 &&
-		strcmp(version, "HTTP/1.1") != 0)
+	if (strcmp(version, "HTTP/1.0") &&
+		strcmp(version, "HTTP/1.1"))
 		return;
 
 	printf("%s %s \n", method, path);
 
-	response = route(method, path);
+	status = route(method, path, &file);
 
-	if (write(client, response, strlen(response)) < 0)
-		perror("write");
+	if (status == 200)
+		printf("Serving: %s\n",file);
+	else
+		printf("HTTP error: %d\n", status);
 
 }
 
-static const char *
-route(const char *method, const char *path)
+static int
+route(const char *method, const char *path, const char **file)
 {
-	if (strcmp(method, "GET") != 0) {
-		return "HTTP/1.0 405 Method Not Allowed\r\n"
-		"Content-Type: text/html\r\n"
-		"Allow: GET\r\n"
-		"Connection: close\r\n"
-		"\r\n"
-		"<h1>405 Method Not Allowed</h1>\n";
-	}
-	if (strcmp(path, "/") == 0) { 
-		return "HTTP/1.0 200 OK\r\n"
-		"Content-Type: text/html\r\n"
-		"Connection: close\r\n"
-		"\r\n"
-		"<h1>Hello from FreeBSD!</h1>\n";
-	}
-	return "HTTP/1.0 404 Not Found\r\n"
-		"Content-Type: text/html\r\n"
-		"Connection: close\r\n"
-		"\r\n"
-		"<h1>404 Not Found</h1>\n";
+	if (strcmp(method, "GET"))
+		return 405;
+	if (!safepath(path))
+		return 403;
+	if (!strcmp(path, "/"))
+		*file = "homepage.html";
+	else
+		*file = path + 1;
+	return 200;
 }
+
 static int
 safepath(const char *path)
 {
