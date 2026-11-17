@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Harbour | C Fileserver Test</title>
+<style>
+:root { color-scheme: dark; --bg:#10171a; --panel:#192327; --border:#34474a; --text:#e0e9e6; --muted:#a4b7b4; --accent:#7ed7a5; }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--text); font:16px/1.6 ui-monospace,SFMono-Regular,Consolas,monospace; }
+main { max-width:1050px; margin:auto; padding:28px 22px 80px; }
+nav { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:12px; border-bottom:1px solid var(--border); padding-bottom:18px; }
+nav strong, h1 em { color:var(--accent); font-style:normal; }
+a { color:var(--accent); text-decoration:none; }
+a:hover { text-decoration:underline; }
+nav a { margin-left:18px; }
+h1 { font-size:clamp(2rem,5vw,3.6rem); line-height:1.12; letter-spacing:-.05em; margin:36px 0 16px; }
+h2 { font-size:1.25rem; color:var(--accent); margin:0 0 18px; }
+p { margin:0 0 16px; }
+.lead { max-width:740px; color:var(--muted); font-size:1.08rem; }
+.grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; margin:34px 0; }
+.card,.panel { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:22px; }
+.card small { display:block; color:var(--muted); text-transform:uppercase; letter-spacing:.09em; }
+.card strong { font-size:1.3rem; color:var(--accent); }
+.panel { margin:22px 0; }
+.step { display:flex; align-items:flex-start; gap:20px; padding:13px 0; border-bottom:1px solid var(--border); }
+.step:last-child { border:0; }
+.step p { margin:3px 0 0; color:var(--muted); }
+.number { color:var(--accent); font-weight:bold; }
+.tablewrap { overflow-x:auto; }
+table { width:100%; border-collapse:collapse; font-size:.88rem; }
+th,td { text-align:left; padding:9px 12px; border-bottom:1px solid var(--border); white-space:nowrap; }
+th { color:var(--accent); }
+tr:hover td { background:#223034; }
+footer { margin-top:34px; border-top:1px solid var(--border); padding-top:20px; color:var(--muted); font-size:.85rem; }
+.pill { display:inline-block; color:var(--accent); border:1px solid var(--border); padding:3px 9px; border-radius:20px; font-size:.8rem; }
+</style>
+</head>
+<body>
+<main id="top">
+<nav><strong>HARBOUR / FILESERVER</strong><div><a href="/">Home</a><a href="/dashboard.html">Dashboard</a><a href="/nonexistent.html">Test 404</a></div></nav>
+<header>
+<h1>Small server.<br><em>Real HTTP.</em></h1>
+<p class="lead">A deliberately minimal HTTP fileserver written in C and running on FreeBSD. This page is a practical test of static-file routing, HTTP headers, and multi-chunk buffered transmission.</p>
+<span class="pill">STATIC HTML</span> <span class="pill">NO JAVASCRIPT</span> <span class="pill">4096-BYTE BUFFER TEST</span>
+</header>
+<div class="grid">
+<div class="card"><small>Operating system</small><strong>FreeBSD</strong></div>
+<div class="card"><small>Implementation</small><strong>C99</strong></div>
+<div class="card"><small>Listening port</small><strong>8080</strong></div>
+<div class="card"><small>Transport</small><strong>TCP / HTTP</strong></div>
+</div>
+<section class="panel"><h2>How a request gets served</h2><div class="step"><span class="number">01</span><div><strong>accept()</strong><p>Accept an incoming TCP connection.</p></div></div>
+<div class="step"><span class="number">02</span><div><strong>read()</strong><p>Read the HTTP request line into a fixed-size buffer.</p></div></div>
+<div class="step"><span class="number">03</span><div><strong>route()</strong><p>Parse the method and path; choose a response status.</p></div></div>
+<div class="step"><span class="number">04</span><div><strong>openat()</strong><p>Open the requested resource relative to the files directory.</p></div></div>
+<div class="step"><span class="number">05</span><div><strong>snprintf()</strong><p>Build the HTTP status line and response headers.</p></div></div>
+<div class="step"><span class="number">06</span><div><strong>write()</strong><p>Send the headers and stream the body in chunks.</p></div></div>
+<div class="step"><span class="number">07</span><div><strong>close()</strong><p>Release the descriptors and await the next client.</p></div></div></section>
+<section class="panel"><h2>Streaming test</h2><p>The following 100 rows are fictional demonstration data, not actual server logs. Their purpose is to make this document substantially larger than the server's 4096-byte read buffer. If the page loads all the way to the footer, the browser has received the complete document.</p>
+<div class="tablewrap"><table><thead><tr><th>#</th><th>Method</th><th>Path</th><th>Example status</th><th>Example size</th></tr></thead><tbody>
+<tr><td>001</td><td>GET</td><td>/sample/001.html</td><td>200 OK</td><td>265 B</td></tr>
+<tr><td>002</td><td>GET</td><td>/sample/002.html</td><td>200 OK</td><td>402 B</td></tr>
+<tr><td>003</td><td>GET</td><td>/sample/003.html</td><td>200 OK</td><td>539 B</td></tr>
+<tr><td>004</td><td>GET</td><td>/sample/004.html</td><td>200 OK</td><td>676 B</td></tr>
+<tr><td>005</td><td>GET</td><td>/sample/005.html</td><td>200 OK</td><td>813 B</td></tr>
+<tr><td>006</td><td>GET</td><td>/sample/006.html</td><td>200 OK</td><td>950 B</td></tr>
+<tr><td>007</td><td>GET</td><td>/sample/007.html</td><td>404 Not Found</td><td>1087 B</td></tr>
+<tr><td>008</td><td>GET</td><td>/sample/008.html</td><td>200 OK</td><td>1224 B</td></tr>
+<tr><td>009</td><td>GET</td><td>/sample/009.html</td><td>200 OK</td><td>1361 B</td></tr>
+<tr><td>010</td><td>GET</td><td>/sample/010.html</td><td>200 OK</td><td>1498 B</td></tr>
+<tr><td>011</td><td>GET</td><td>/sample/011.html</td><td>200 OK</td><td>1635 B</td></tr>
+<tr><td>012</td><td>GET</td><td>/sample/012.html</td><td>200 OK</td><td>1772 B</td></tr>
+<tr><td>013</td><td>GET</td><td>/sample/013.html</td><td>200 OK</td><td>1909 B</td></tr>
+<tr><td>014</td><td>GET</td><td>/sample/014.html</td><td>404 Not Found</td><td>2046 B</td></tr>
+<tr><td>015</td><td>GET</td><td>/sample/015.html</td><td>200 OK</td><td>2183 B</td></tr>
+<tr><td>016</td><td>GET</td><td>/sample/016.html</td><td>200 OK</td><td>2320 B</td></tr>
+<tr><td>017</td><td>GET</td><td>/sample/017.html</td><td>200 OK</td><td>2457 B</td></tr>
+<tr><td>018</td><td>GET</td><td>/sample/018.html</td><td>200 OK</td><td>2594 B</td></tr>
+<tr><td>019</td><td>GET</td><td>/sample/019.html</td><td>200 OK</td><td>2731 B</td></tr>
+<tr><td>020</td><td>GET</td><td>/sample/020.html</td><td>200 OK</td><td>2868 B</td></tr>
+<tr><td>021</td><td>GET</td><td>/sample/021.html</td><td>404 Not Found</td><td>3005 B</td></tr>
+<tr><td>022</td><td>GET</td><td>/sample/022.html</td><td>200 OK</td><td>3142 B</td></tr>
+<tr><td>023</td><td>GET</td><td>/sample/023.html</td><td>200 OK</td><td>3279 B</td></tr>
+<tr><td>024</td><td>GET</td><td>/sample/024.html</td><td>200 OK</td><td>3416 B</td></tr>
+<tr><td>025</td><td>GET</td><td>/sample/025.html</td><td>200 OK</td><td>3553 B</td></tr>
+<tr><td>026</td><td>GET</td><td>/sample/026.html</td><td>200 OK</td><td>3690 B</td></tr>
+<tr><td>027</td><td>GET</td><td>/sample/027.html</td><td>200 OK</td><td>3827 B</td></tr>
+<tr><td>028</td><td>GET</td><td>/sample/028.html</td><td>404 Not Found</td><td>3964 B</td></tr>
+<tr><td>029</td><td>GET</td><td>/sample/029.html</td><td>200 OK</td><td>4101 B</td></tr>
+<tr><td>030</td><td>GET</td><td>/sample/030.html</td><td>200 OK</td><td>142 B</td></tr>
+<tr><td>031</td><td>GET</td><td>/sample/031.html</td><td>200 OK</td><td>279 B</td></tr>
+<tr><td>032</td><td>GET</td><td>/sample/032.html</td><td>200 OK</td><td>416 B</td></tr>
+<tr><td>033</td><td>GET</td><td>/sample/033.html</td><td>200 OK</td><td>553 B</td></tr>
+<tr><td>034</td><td>GET</td><td>/sample/034.html</td><td>200 OK</td><td>690 B</td></tr>
+<tr><td>035</td><td>GET</td><td>/sample/035.html</td><td>404 Not Found</td><td>827 B</td></tr>
+<tr><td>036</td><td>GET</td><td>/sample/036.html</td><td>200 OK</td><td>964 B</td></tr>
+<tr><td>037</td><td>GET</td><td>/sample/037.html</td><td>200 OK</td><td>1101 B</td></tr>
+<tr><td>038</td><td>GET</td><td>/sample/038.html</td><td>200 OK</td><td>1238 B</td></tr>
+<tr><td>039</td><td>GET</td><td>/sample/039.html</td><td>200 OK</td><td>1375 B</td></tr>
+<tr><td>040</td><td>GET</td><td>/sample/040.html</td><td>200 OK</td><td>1512 B</td></tr>
+<tr><td>041</td><td>GET</td><td>/sample/041.html</td><td>200 OK</td><td>1649 B</td></tr>
+<tr><td>042</td><td>GET</td><td>/sample/042.html</td><td>404 Not Found</td><td>1786 B</td></tr>
+<tr><td>043</td><td>GET</td><td>/sample/043.html</td><td>200 OK</td><td>1923 B</td></tr>
+<tr><td>044</td><td>GET</td><td>/sample/044.html</td><td>200 OK</td><td>2060 B</td></tr>
+<tr><td>045</td><td>GET</td><td>/sample/045.html</td><td>200 OK</td><td>2197 B</td></tr>
+<tr><td>046</td><td>GET</td><td>/sample/046.html</td><td>200 OK</td><td>2334 B</td></tr>
+<tr><td>047</td><td>GET</td><td>/sample/047.html</td><td>200 OK</td><td>2471 B</td></tr>
+<tr><td>048</td><td>GET</td><td>/sample/048.html</td><td>200 OK</td><td>2608 B</td></tr>
+<tr><td>049</td><td>GET</td><td>/sample/049.html</td><td>404 Not Found</td><td>2745 B</td></tr>
+<tr><td>050</td><td>GET</td><td>/sample/050.html</td><td>200 OK</td><td>2882 B</td></tr>
+<tr><td>051</td><td>GET</td><td>/sample/051.html</td><td>200 OK</td><td>3019 B</td></tr>
+<tr><td>052</td><td>GET</td><td>/sample/052.html</td><td>200 OK</td><td>3156 B</td></tr>
+<tr><td>053</td><td>GET</td><td>/sample/053.html</td><td>200 OK</td><td>3293 B</td></tr>
+<tr><td>054</td><td>GET</td><td>/sample/054.html</td><td>200 OK</td><td>3430 B</td></tr>
+<tr><td>055</td><td>GET</td><td>/sample/055.html</td><td>200 OK</td><td>3567 B</td></tr>
+<tr><td>056</td><td>GET</td><td>/sample/056.html</td><td>404 Not Found</td><td>3704 B</td></tr>
+<tr><td>057</td><td>GET</td><td>/sample/057.html</td><td>200 OK</td><td>3841 B</td></tr>
+<tr><td>058</td><td>GET</td><td>/sample/058.html</td><td>200 OK</td><td>3978 B</td></tr>
+<tr><td>059</td><td>GET</td><td>/sample/059.html</td><td>200 OK</td><td>4115 B</td></tr>
+<tr><td>060</td><td>GET</td><td>/sample/060.html</td><td>200 OK</td><td>156 B</td></tr>
+<tr><td>061</td><td>GET</td><td>/sample/061.html</td><td>200 OK</td><td>293 B</td></tr>
+<tr><td>062</td><td>GET</td><td>/sample/062.html</td><td>200 OK</td><td>430 B</td></tr>
+<tr><td>063</td><td>GET</td><td>/sample/063.html</td><td>404 Not Found</td><td>567 B</td></tr>
+<tr><td>064</td><td>GET</td><td>/sample/064.html</td><td>200 OK</td><td>704 B</td></tr>
+<tr><td>065</td><td>GET</td><td>/sample/065.html</td><td>200 OK</td><td>841 B</td></tr>
+<tr><td>066</td><td>GET</td><td>/sample/066.html</td><td>200 OK</td><td>978 B</td></tr>
+<tr><td>067</td><td>GET</td><td>/sample/067.html</td><td>200 OK</td><td>1115 B</td></tr>
+<tr><td>068</td><td>GET</td><td>/sample/068.html</td><td>200 OK</td><td>1252 B</td></tr>
+<tr><td>069</td><td>GET</td><td>/sample/069.html</td><td>200 OK</td><td>1389 B</td></tr>
+<tr><td>070</td><td>GET</td><td>/sample/070.html</td><td>404 Not Found</td><td>1526 B</td></tr>
+<tr><td>071</td><td>GET</td><td>/sample/071.html</td><td>200 OK</td><td>1663 B</td></tr>
+<tr><td>072</td><td>GET</td><td>/sample/072.html</td><td>200 OK</td><td>1800 B</td></tr>
+<tr><td>073</td><td>GET</td><td>/sample/073.html</td><td>200 OK</td><td>1937 B</td></tr>
+<tr><td>074</td><td>GET</td><td>/sample/074.html</td><td>200 OK</td><td>2074 B</td></tr>
+<tr><td>075</td><td>GET</td><td>/sample/075.html</td><td>200 OK</td><td>2211 B</td></tr>
+<tr><td>076</td><td>GET</td><td>/sample/076.html</td><td>200 OK</td><td>2348 B</td></tr>
+<tr><td>077</td><td>GET</td><td>/sample/077.html</td><td>404 Not Found</td><td>2485 B</td></tr>
+<tr><td>078</td><td>GET</td><td>/sample/078.html</td><td>200 OK</td><td>2622 B</td></tr>
+<tr><td>079</td><td>GET</td><td>/sample/079.html</td><td>200 OK</td><td>2759 B</td></tr>
+<tr><td>080</td><td>GET</td><td>/sample/080.html</td><td>200 OK</td><td>2896 B</td></tr>
+<tr><td>081</td><td>GET</td><td>/sample/081.html</td><td>200 OK</td><td>3033 B</td></tr>
+<tr><td>082</td><td>GET</td><td>/sample/082.html</td><td>200 OK</td><td>3170 B</td></tr>
+<tr><td>083</td><td>GET</td><td>/sample/083.html</td><td>200 OK</td><td>3307 B</td></tr>
+<tr><td>084</td><td>GET</td><td>/sample/084.html</td><td>404 Not Found</td><td>3444 B</td></tr>
+<tr><td>085</td><td>GET</td><td>/sample/085.html</td><td>200 OK</td><td>3581 B</td></tr>
+<tr><td>086</td><td>GET</td><td>/sample/086.html</td><td>200 OK</td><td>3718 B</td></tr>
+<tr><td>087</td><td>GET</td><td>/sample/087.html</td><td>200 OK</td><td>3855 B</td></tr>
+<tr><td>088</td><td>GET</td><td>/sample/088.html</td><td>200 OK</td><td>3992 B</td></tr>
+<tr><td>089</td><td>GET</td><td>/sample/089.html</td><td>200 OK</td><td>4129 B</td></tr>
+<tr><td>090</td><td>GET</td><td>/sample/090.html</td><td>200 OK</td><td>170 B</td></tr>
+<tr><td>091</td><td>GET</td><td>/sample/091.html</td><td>404 Not Found</td><td>307 B</td></tr>
+<tr><td>092</td><td>GET</td><td>/sample/092.html</td><td>200 OK</td><td>444 B</td></tr>
+<tr><td>093</td><td>GET</td><td>/sample/093.html</td><td>200 OK</td><td>581 B</td></tr>
+<tr><td>094</td><td>GET</td><td>/sample/094.html</td><td>200 OK</td><td>718 B</td></tr>
+<tr><td>095</td><td>GET</td><td>/sample/095.html</td><td>200 OK</td><td>855 B</td></tr>
+<tr><td>096</td><td>GET</td><td>/sample/096.html</td><td>200 OK</td><td>992 B</td></tr>
+<tr><td>097</td><td>GET</td><td>/sample/097.html</td><td>200 OK</td><td>1129 B</td></tr>
+<tr><td>098</td><td>GET</td><td>/sample/098.html</td><td>404 Not Found</td><td>1266 B</td></tr>
+<tr><td>099</td><td>GET</td><td>/sample/099.html</td><td>200 OK</td><td>1403 B</td></tr>
+<tr><td>100</td><td>GET</td><td>/sample/100.html</td><td>200 OK</td><td>1540 B</td></tr>
+</tbody></table></div></section>
+<footer>END OF DOCUMENT · Served by C. No frameworks. No JavaScript. <a href="#top">Back to top</a></footer>
+</main>
+</body>
+</html>

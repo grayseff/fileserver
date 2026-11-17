@@ -107,8 +107,8 @@ stop(int signo)
 static void
 handleclient(int client, int dirfd)
 {
-	char request[4096], buffer [4096];
-	int status, fd;
+	char request[4096];
+	int status;
 	ssize_t n;
 	size_t used = 0;
 	char *end = NULL;
@@ -141,29 +141,8 @@ handleclient(int client, int dirfd)
 	*end = '\0';
 
 	status = route(request, &file);
-
-	if (status != 200) {
-		printf("HTTP error: %d\n", status);
-		return;
-	}
-
-	fd = openat(dirfd, file, O_RDONLY);
-	if (fd < 0) {
-		perror("openat");
-		return;
-	}
-	printf("Opened: %s (fd = %d)\n", file, fd);
-
-	n = read(fd, buffer, sizeof(buffer));
-	if (n < 0) {
-		perror("read file");
-		close(fd);
-		return;
-	}
-	if (n > 0)
-		write(client, buffer, (size_t)n);
-
-	close(fd);
+	if (sendresponse(client, dirfd, file, status) < 0)
+		fprintf(stderr, "Serving failed\n");
 	return;
 }
 
@@ -175,29 +154,41 @@ route(char *request, const char **file)
 
 	method = request;
 	start = strchr(request, ' ');
-	if (!start)
+	if (!start) {
+		*file = "400.html";
 		return 400;
+	}
 	*start = '\0';
 	path = start + 1;
 	finish = strchr(path, ' ');
-	if (!finish)
+	if (!finish) {
+		*file = "400.html";
 		return 400;
+	}
 	*finish = '\0';
 	version = finish +1;
 
-	if ((size_t)(finish - path) > 255)
+	if ((size_t)(finish - path) > 255) {
+		*file = "414.html";
 		return 414;
+	}
 
 	if (strcmp(version, "HTTP/1.0") &&
-		strcmp(version, "HTTP/1.1"))
+		strcmp(version, "HTTP/1.1")) {
+		*file = "400.html";
 		return 400;
+	}
 
 	printf("%s %s \n", method, path);
 
-	if (strcmp(method, "GET"))
+	if (strcmp(method, "GET")) {
+		*file = "405.html";
 		return 405;
-	if (!safepath(path))
+	}
+	if (!safepath(path)) {
+		*file = "403.html";
 		return 403;
+	}
 	if (!strcmp(path, "/"))
 		*file = "homepage.html";
 	else 
@@ -229,5 +220,107 @@ safepath(const char *path)
 static int
 sendresponse(int client, int dirfd, const char *file, int status)
 {
+	int fd, len;
+	ssize_t n;
+	size_t sent = 0;
+	const char *reason;
+	char header[256],buffer[4096];
+
 	
+	fd = openat(dirfd, file, O_RDONLY);
+	if (fd < 0)
+		status = 404;
+
+	switch (status) {
+	case 200:
+		reason = "OK";
+		break;
+	case 400:
+		reason = "Bad Request";
+		break;
+	case 403:
+		reason = "Forbidden";
+		break;
+	case 404:
+		reason = "Not Found";
+		break;
+	case 405:
+		reason = "Method Not Allowed";
+		break;
+	case 414:
+		reason = "URI Too Long";
+		break;
+	default:
+		reason = "Internal Server Error";
+		status = 500;
+		break;
+	}
+	len = snprintf(header, sizeof(header),
+		"HTTP/1.1 %d %s\r\n"
+		"Content-Type: text/html\r\n"
+		"Connection: close\r\n"
+		"\r\n",
+		status, reason);
+	if (len < 0 || (size_t)len >= sizeof(header)) {
+		if (fd >= 0)
+			close(fd);
+		return -1;
+	}	
+
+	while (sent < (size_t)len) {
+		n = write(client, header + sent, (size_t)len-sent);
+		if (n < 0) {
+			if (errno == EINTR)
+				continue;
+			perror("write");
+			close(fd);
+			return -1;
+		}
+		if (n==0) {
+			close(fd);
+			return -1;
+		}
+		sent += (size_t)n;
+	}
+
+	if (status == 404) {
+		static const char msg[] =
+			"<h1>404: These aren't the pages you're looking for</h1>\n";
+		write(client, msg, sizeof(msg) -1);
+		return 0;
+	}
+	printf("Reading %s (fd = %d)\n", file, fd);
+	while (1) {
+		n = read(fd, buffer, sizeof(buffer));
+		if (n < 0) {
+			if (errno == EINTR)
+				continue;
+			perror("read file");
+			close(fd);
+			return -1;
+		}
+		if (n == 0)
+			break;
+		/* write bytes */
+		len = (size_t)n;
+		sent = 0;
+		while (sent < (size_t)len) {
+			n = write(client, buffer+sent, (size_t)len - sent);
+			if (n < 0) {
+				if (errno == EINTR)
+					continue;
+				perror("write");
+				close(fd);
+				return -1;
+			}
+			if (n==0) {
+				close(fd);
+				return -1;
+			}
+			sent += (size_t)n;
+		}
+	}	
+	close(fd);
+	return 0;
+
 }
