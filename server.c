@@ -14,10 +14,10 @@
 static volatile sig_atomic_t running = 1;
 
 static void stop(int);
-static void handleclient(int);
-static int route(const char *, const char *, const char **);
+static void handleclient(int, int);
+static int route(char *, const char **);
 static int safepath(const char *);
-
+static int sendresponse(int, int, const char *, int);
 
 int
 main(void)
@@ -83,7 +83,7 @@ main(void)
 		}
 		printf("client fd %d\n", client);
 		
-		handleclient(client);
+		handleclient(client, dirfd);
 		close(client);
 	}
 
@@ -105,11 +105,10 @@ stop(int signo)
 }
 
 static void
-handleclient(int client)
+handleclient(int client, int dirfd)
 {
-	char *start, *finish;
-	char method[8], path[256], version[16], request[4096];
-	int status;
+	char request[4096], buffer [4096];
+	int status, fd;
 	ssize_t n;
 	size_t used = 0;
 	char *end = NULL;
@@ -135,55 +134,78 @@ handleclient(int client)
 		end = strstr(request, "\r\n");
 		if (end)
 			break;
-	
 	}
 
 	if (!end)
 		return;
 	*end = '\0';
 
-	start = strchr(request, ' ');
-	if (!start)
-		return;
-	if ((size_t)(start - request) >= sizeof(method))
-		return;
-	
-	finish = strchr(++start, ' ');
-	if (!finish)
-		return;
-	if ((size_t)(finish - start) >= sizeof(path))
-		return;
+	status = route(request, &file);
 
-	if (sscanf(request, "%7s %255s %15s", method, path, version) != 3)
-		return;
-
-	if (strcmp(version, "HTTP/1.0") &&
-		strcmp(version, "HTTP/1.1"))
-		return;
-
-	printf("%s %s \n", method, path);
-
-	status = route(method, path, &file);
-
-	if (status == 200)
-		printf("Serving: %s\n",file);
-	else
+	if (status != 200) {
 		printf("HTTP error: %d\n", status);
+		return;
+	}
 
+	fd = openat(dirfd, file, O_RDONLY);
+	if (fd < 0) {
+		perror("openat");
+		return;
+	}
+	printf("Opened: %s (fd = %d)\n", file, fd);
+
+	n = read(fd, buffer, sizeof(buffer));
+	if (n < 0) {
+		perror("read file");
+		close(fd);
+		return;
+	}
+	if (n > 0)
+		write(client, buffer, (size_t)n);
+
+	close(fd);
+	return;
 }
 
 static int
-route(const char *method, const char *path, const char **file)
+route(char *request, const char **file)
 {
+	char *start, *finish;
+	char *method, *path, *version;
+
+	method = request;
+	start = strchr(request, ' ');
+	if (!start)
+		return 400;
+	*start = '\0';
+	path = start + 1;
+	finish = strchr(path, ' ');
+	if (!finish)
+		return 400;
+	*finish = '\0';
+	version = finish +1;
+
+	if ((size_t)(finish - path) > 255)
+		return 414;
+
+	if (strcmp(version, "HTTP/1.0") &&
+		strcmp(version, "HTTP/1.1"))
+		return 400;
+
+	printf("%s %s \n", method, path);
+
 	if (strcmp(method, "GET"))
 		return 405;
 	if (!safepath(path))
 		return 403;
 	if (!strcmp(path, "/"))
 		*file = "homepage.html";
-	else
+	else 
 		*file = path + 1;
 	return 200;
+
+
+
 }
 
 static int
@@ -202,4 +224,10 @@ safepath(const char *path)
 			return 0;
 	}
 	return 1;
+}
+
+static int
+sendresponse(int client, int dirfd, const char *file, int status)
+{
+	
 }
