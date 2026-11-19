@@ -83,7 +83,11 @@ main(void)
 		perror("cap rights limit");
 		goto cleanserver;
 	}
-
+	cap_rights_init(&rights, CAP_ACCEPT, CAP_READ, CAP_WRITE);
+	if (cap_rights_limit(server, &rights) < 0) {
+		perror("cap_rights_limit_server");
+		goto cleanserver;
+	}
 	if (cap_enter() < 0) {
 		perror("cap_enter");
 		goto cleanserver;
@@ -248,8 +252,10 @@ sendresponse(int client, int dirfd, const char *file, int status)
 
 	
 	fd = openat(dirfd, file, O_RDONLY);
-	if (fd < 0)
+	if (fd < 0) {
+		perror("openat");
 		status = 404;
+	}
 
 	switch (status) {
 	case 200:
