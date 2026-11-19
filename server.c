@@ -25,7 +25,7 @@ main(void)
 	int server, yes, dirfd;
 	int exitcode = EXIT_FAILURE;
 
-	struct sockaddr_in addr = {0};
+	struct sockaddr_in6 addr = {0};
 
 	struct sigaction sa = {0};
 
@@ -43,16 +43,16 @@ main(void)
 		return EXIT_FAILURE;
 	}
 
-	server = socket(AF_INET, SOCK_STREAM, 0);
+	server = socket(AF_INET6, SOCK_STREAM, 0);
 	if (server < 0) {
 		perror("socket");
 		goto cleandir;
 	}
 	printf("Socket created: fd=%d\n", server);
 	
-	addr.sin_family = AF_INET;
-	addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-	addr.sin_port = htons(8080);
+	addr.sin6_family = AF_INET6;
+	addr.sin6_addr= in6addr_loopback;
+	addr.sin6_port = htons(8080);
 	
 	yes = 1;
 	if (setsockopt(server, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) < 0 ) {
