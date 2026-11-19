@@ -11,6 +11,10 @@
 #include <string.h>
 #include <unistd.h>
 
+#ifdef __FreeBSD__
+#include <sys/capsicum.h>
+#endif
+
 static volatile sig_atomic_t running = 1;
 
 static void stop(int);
@@ -69,7 +73,23 @@ main(void)
 		perror("listen");
 		goto cleanserver;
 	}
-	printf("listening on :8080\n");
+	printf("listening on [::1]:8080\n");
+
+#ifdef __FreeBSD__
+	cap_rights_t rights;
+
+	cap_rights_init(&rights, CAP_LOOKUP, CAP_READ);
+	if (cap_rights_limit(dirfd, &rights) < 0) {
+		perror("cap rights limit");
+		goto cleanserver;
+	}
+
+	if (cap_enter() < 0) {
+		perror("cap_enter");
+		goto cleanserver;
+	}
+	printf("Capsicum engaged: Hot peppers, cold permissions\n");
+#endif
 
 	while (running) {
 		int client = accept(server, NULL, NULL);
